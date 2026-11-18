@@ -8,12 +8,12 @@ import {
   limitToLast 
 } from 'firebase/database';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { Thermometer, Droplet, Waves } from 'lucide-react';
+import { Thermometer, Droplet, Waves, Wind} from 'lucide-react';
 
 // Components
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import QuickStatsBar from './components/QuickStatsBar';
+
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -62,9 +62,10 @@ const getTimestampFromId = (id) => {
 
 // --- DEFAULT SETTINGS ---
 const DEFAULT_THRESHOLDS = {
-  temp: { min: 30, max: 35, mode: 'out', enabled: true },
+  do: { min: 5.0, max: 10.0, mode: 'out', enabled: true },
   ph: { min: 6.5, max: 8.5, mode: 'out', enabled: true },
-  turbidity: { min: 25, max: 40, mode: 'out', enabled: true }
+  turbidity: { min: 25, max: 40, mode: 'out', enabled: true },
+  temp: { min: 30, max: 35, mode: 'out', enabled: true }
 };
 
 export default function WaterQualityDashboard() {
@@ -73,15 +74,13 @@ export default function WaterQualityDashboard() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   
   // App Mode State
-  const [appMode, setAppMode] = useState('elective'); 
-
+  const [appMode, setAppMode] = useState('des_project'); 
   const [dataSource, setDataSource] = useState('real'); 
   const [isSimulationRunning, setIsSimulationRunning] = useState(false);
   const [user, setUser] = useState(null);
   
   // Data States
-  // ADD wqi to the liveValues initial state
-  const [liveValues, setLiveValues] = useState({ temp: 0, ph: 0, turbidity: 0, wqi: 0 });
+  const [liveValues, setLiveValues] = useState({ do: 0, temp: 0, ph: 0, turbidity: 0, wqi: 0 });
   const [historyData, setHistoryData] = useState([]); 
   const [forecastData, setForecastData] = useState(undefined); 
   const [dashboardSimData, setDashboardSimData] = useState([]); 
@@ -155,7 +154,7 @@ export default function WaterQualityDashboard() {
             });
         }
     };
-
+    checkParam('do', values.do, "Dissolved Oxygen");
     checkParam('temp', values.temp, "Temperature");
     checkParam('ph', values.ph, "pH Level");
     checkParam('turbidity', values.turbidity, "Turbidity");
@@ -213,7 +212,7 @@ export default function WaterQualityDashboard() {
   useEffect(() => {
     if (dataSource === 'real') {
       console.log("🔌 Connecting to History Data...");
-      const historyQuery = query(ref(db, DB_HISTORY_PATH), limitToLast(500));
+      const historyQuery = query(ref(db, DB_HISTORY_PATH), limitToLast(10000));
       
       const unsubscribeHistory = onValue(historyQuery, (snapshot) => {
         if (snapshot.exists()) {
@@ -221,6 +220,7 @@ export default function WaterQualityDashboard() {
           
           const parsedData = Object.keys(dataObj).map(key => {
             const entry = dataObj[key];
+            const rawDo = entry.do ?? entry.DO ?? entry.D0 ?? entry['Dissolved Oxygen'] ?? 0;
             const rawTemp = entry.temperature ?? entry.temp ?? entry.Temp ?? entry.Temperature ?? 0;
             const rawPh = entry.pH ?? entry.ph ?? entry.PH ?? 0;
             const rawTurb = entry.turbidity ?? entry.turb ?? entry.Turbidity ?? entry.ntu ?? entry.NTU ?? 0;
@@ -240,6 +240,7 @@ export default function WaterQualityDashboard() {
             return {
               id: key,
               timestamp: timeVal,
+              do: Number(rawDo),
               temp: Number(rawTemp),
               ph: Number(rawPh),
               turbidity: Number(rawTurb),
@@ -254,8 +255,9 @@ export default function WaterQualityDashboard() {
           if (parsedData.length > 0) {
             const latest = parsedData[parsedData.length - 1];
             // CALCULATE WQI FOR REAL DATA
-            const currentWqi = calculateWQI(latest.temp, latest.ph, latest.turbidity);
+            const currentWqi = calculateWQI(latest.do, latest.temp, latest.ph, latest.turbidity);
             const newLive = {
+              do: latest.do,
               temp: latest.temp,
               ph: latest.ph,
               turbidity: latest.turbidity,
@@ -283,22 +285,25 @@ export default function WaterQualityDashboard() {
     if (dashboardSimData.length === 0) {
         console.log("Creating Initial Simulation Data...");
         const initialQueue = [];
-        let lastTemp = 28.0, lastPh = 7.5, lastTurb = 15.0;
+        let lastDo = 8.0, lastTemp = 28.0, lastPh = 7.5, lastTurb = 15.0;
 
         for (let i = 0; i < 49; i++) {
-            lastTemp += (Math.random() - 0.5);
-            lastPh += (Math.random() - 0.5) * 0.2;
-            lastTurb += (Math.random() - 0.5) * 5;
+          lastDo += (Math.random() - 0.5) * 0.2;
+          lastTemp += (Math.random() - 0.5);
+          lastPh += (Math.random() - 0.5) * 0.2;
+          lastTurb += (Math.random() - 0.5) * 5;
 
-            lastTemp = Math.max(20, Math.min(35, lastTemp));
-            lastPh = Math.max(6, Math.min(9, lastPh));
-            lastTurb = Math.max(0, Math.min(100, lastTurb));
+          lastDo = Math.max(0, Math.min(20, lastDo));
+          lastTemp = Math.max(20, Math.min(35, lastTemp));
+          lastPh = Math.max(6, Math.min(9, lastPh));
+          lastTurb = Math.max(0, Math.min(100, lastTurb));
 
-            initialQueue.push({
-                temp: Number(lastTemp.toFixed(2)),
-                ph: Number(lastPh.toFixed(2)),
-                turbidity: Number(lastTurb.toFixed(2))
-            });
+          initialQueue.push({
+            do: Number(lastDo.toFixed(2)),  
+            temp: Number(lastTemp.toFixed(2)),
+            ph: Number(lastPh.toFixed(2)),
+            turbidity: Number(lastTurb.toFixed(2))
+          });
         }
         setDashboardSimData(initialQueue);
         // CALCULATE INITIAL WQI FOR SIMULATION
@@ -316,21 +321,25 @@ export default function WaterQualityDashboard() {
 
                 const currentCenter = prevQueue[24];
                 
+                let doChange = (Math.random() - 0.5) * 0.2;
                 let tempChange = (Math.random() - 0.5);
                 let phChange = (Math.random() - 0.5) * 0.2;
                 let turbChange = (Math.random() - 0.5) * 5;
 
                 if (Math.random() < 0.2) {
                     const type = Math.random();
-                    if (type < 0.33) {
+                    if (type < 0.25) {
+                        doChange += (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 1.0); // Spikes for DO
+                    } else if (type < 0.50) {
                         tempChange += (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 1.5); 
-                    } else if (type < 0.66) {
+                    } else if (type < 0.75) {
                         phChange += (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 1.0);
                     } else {
                         turbChange += (Math.random() > 0.5 ? 1 : -1) * (20 + Math.random() * 60);
                     }
                 }
 
+                const newDo = Math.max(0, Math.min(20, currentCenter.do + doChange));
                 const newTemp = Math.max(20, Math.min(35, currentCenter.temp + tempChange));
                 const newPh = Math.max(6, Math.min(10, currentCenter.ph + phChange));
                 const newTurb = Math.max(0, Math.min(100, currentCenter.turbidity + turbChange));
@@ -339,10 +348,11 @@ export default function WaterQualityDashboard() {
                 const simWqi = calculateWQI(newTemp, newPh, newTurb);
 
                 const newLivePoint = {
-                    temp: Number(newTemp.toFixed(2)),
-                    ph: Number(newPh.toFixed(2)),
-                    turbidity: Number(newTurb.toFixed(2)),
-                    wqi: simWqi // Dynamic WQI update for simulation
+                  do: Number(newDo.toFixed(2)),
+                  temp: Number(newTemp.toFixed(2)),
+                  ph: Number(newPh.toFixed(2)),
+                  turbidity: Number(newTurb.toFixed(2)),
+                  wqi: simWqi // Dynamic WQI update for simulation
                 };
                 
                 const lastFuture = prevQueue[prevQueue.length - 1];
@@ -391,9 +401,8 @@ export default function WaterQualityDashboard() {
   };
 
   const headerOptions = {
-    elective: {
-      title: "Water Quality Monitoring",
-      desc: "An IoT-based real-time river water quality monitoring system leveraging microcontroller devices, and descriptive and predictive data analytics in selected rivers in Indang, Cavite"
+    design_project: {
+      title: "AIoT-based Real-Time Water Quality Monitoring and Predicitve Correction System",
     },
     embedded: { 
       title: "M.A.L.I.N.A.W.",
@@ -401,7 +410,7 @@ export default function WaterQualityDashboard() {
     }
   };
 
-  const currentHeaderConfig = headerOptions[appMode] || headerOptions.elective;
+  const currentHeaderConfig = headerOptions[appMode] || headerOptions.design_project;
 
   const getStatusPill = () => {
     if (deviceStatus === 'online') return { bg: 'bg-emerald-500', ring: 'bg-emerald-400', label: 'System Online' };
@@ -411,9 +420,10 @@ export default function WaterQualityDashboard() {
   const pillStyle = getStatusPill();
 
   const metrics = [
-    { title: "Temperature", icon: Thermometer, type: "temp", baseDataConfig: { baseValue: 28.0, volatility: 2 }, config: { currentValue: liveValues?.temp ?? 0, unit: "°C", status: determineStatus('temp', liveValues?.temp ?? 0), min: 20, max: 40 } },
     { title: "pH Level", icon: Droplet, type: "ph", baseDataConfig: { baseValue: 7.8, volatility: 0.2 }, config: { currentValue: liveValues?.ph ?? 0, unit: "pH", status: determineStatus('ph', liveValues?.ph ?? 0), min: 1, max: 14 } },
-    { title: "Turbidity", icon: Waves, type: "turbidity", baseDataConfig: { baseValue: 25.0, volatility: 5.0 }, config: { currentValue: liveValues?.turbidity ?? 0, unit: "NTU", status: determineStatus('turbidity', liveValues?.turbidity ?? 0), min: 0, max: 100 } }
+    { title: "Dissolved Oxygen", icon: Wind, type: "do", baseDataConfig: { baseValue: 8.0, volatility: 0.5 }, config: { currentValue: liveValues?.do ?? 0, unit: "mg/L", status: determineStatus('do', liveValues?.do ?? 0), min: 0, max: 20 } },
+    { title: "Turbidity", icon: Waves, type: "turbidity", baseDataConfig: { baseValue: 25.0, volatility: 5.0 }, config: { currentValue: liveValues?.turbidity ?? 0, unit: "NTU", status: determineStatus('turbidity', liveValues?.turbidity ?? 0), min: 0, max: 3000 } },
+    { title: "Temperature", icon: Thermometer, type: "temp", baseDataConfig: { baseValue: 28.0, volatility: 2 }, config: { currentValue: liveValues?.temp ?? 0, unit: "°C", status: determineStatus('temp', liveValues?.temp ?? 0), min: 20, max: 40 } }
   ];
 
   const lastTimestamp = historyData.length > 0 ? historyData[historyData.length - 1].timestamp : Date.now();
@@ -431,22 +441,32 @@ export default function WaterQualityDashboard() {
           headerConfig={currentHeaderConfig} 
         />
         
-        <main className="flex-1 overflow-y-auto p-6 max-w-7xl w-full mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
-            <div className="flex flex-col gap-1">
-               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Status</h2>
-               <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 text-sm font-medium text-slate-600 flex items-center gap-2 self-start">
-                <span className="relative flex h-3 w-3">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pillStyle.ring}`}></span>
-                    <span className={`relative inline-flex rounded-full h-3 w-3 ${pillStyle.bg}`}></span>
-                </span>
-                {pillStyle.label} <span className="text-slate-300 mx-1">|</span> {dataSource === 'simulation' ? 'Simulated' : 'Real-Time'}
+        <main className="flex-1 overflow-y-auto p-4 max-w-7xl w-full mx-auto flex flex-col min-h-0">
+          
+          {/* TOP ROW: Status and Last Update ONLY (Visible exclusively on Dashboard) */}
+          {activeTab === 'dashboard' && (
+            <div className="flex flex-row items-end justify-between mb-4 gap-4 shrink-0">
+              
+              {/* Left: Status Pill */}
+              <div className="flex flex-col gap-1 shrink-0">
+                 <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Status</h2>
+                 <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 text-sm font-medium text-slate-600 flex items-center gap-2 self-start">
+                  <span className="relative flex h-3 w-3">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pillStyle.ring}`}></span>
+                      <span className={`relative inline-flex rounded-full h-3 w-3 ${pillStyle.bg}`}></span>
+                  </span>
+                  {pillStyle.label} <span className="text-slate-300 mx-1">|</span> {dataSource === 'simulation' ? 'Simulated' : 'Real-Time'}
+                </div>
+              </div>
+
+              {/* Right: Last Update */}
+              <div className="hidden md:block text-xs font-mono text-slate-400 bg-slate-100 px-3 py-2 rounded-lg border border-slate-200 mb-1 shrink-0">
+                  Last Update: {new Date(lastTimestamp).toLocaleTimeString()}
               </div>
             </div>
-          </div>
+          )}
 
-          {activeTab !== 'dashboard' && <QuickStatsBar metrics={metrics} liveValues={liveValues || {temp:0, ph:0, turbidity:0, wqi:0}} />}
-
+          {/* DASHBOARD TAB */}
           {activeTab === 'dashboard' && (
             <Dashboard 
               metrics={metrics} 
@@ -457,6 +477,7 @@ export default function WaterQualityDashboard() {
               lastUpdated={lastTimestamp}
             />
           )}
+
           {activeTab === 'alerts' && <Alerts notifications={notifications} clearNotifications={() => setNotifications([])} />}
           
           {activeTab === 'settings' && (
@@ -472,7 +493,12 @@ export default function WaterQualityDashboard() {
             />
           )}
           
-          {activeTab === 'history' && <HistoricalData dataSource={dataSource} historyData={historyData} thresholds={thresholds} />}
+          {activeTab === 'history' && (
+            <HistoricalData 
+              dataSource={dataSource} 
+              historyData={historyData} 
+            />
+          )}
           
           {activeTab === 'forecast' && (
             <Forecast 

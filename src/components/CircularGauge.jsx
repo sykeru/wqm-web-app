@@ -8,7 +8,12 @@ const CircularGauge = ({ value, min, max, type, unit, status }) => {
   const startAngle = 135;
   const endAngle = 405;
   const totalAngle = endAngle - startAngle;
-  const safeValue = Math.min(Math.max(value, min), max);
+
+  // SAFETY FIX: Fallback to 0 if value is undefined or NaN
+  const numericValue = Number(value);
+  const validValue = isNaN(numericValue) ? 0 : numericValue;
+
+  const safeValue = Math.min(Math.max(validValue, min), max);
   const normalizedValue = (safeValue - min) / (max - min);
   const currentAngle = startAngle + (normalizedValue * totalAngle);
 
@@ -29,7 +34,8 @@ const CircularGauge = ({ value, min, max, type, unit, status }) => {
   const maxLabelPos = polarToCartesian(center, center, radius + 25, endAngle);
 
   const renderAngularGradient = () => {
-    const stops = gradientStops[type];
+    // SAFETY FIX: Fallback to a default grey gradient if the type is missing
+    const stops = gradientStops[type] || [{ p: 0, r: 200, g: 200, b: 200, a: 1 }, { p: 1, r: 100, g: 100, b: 100, a: 1 }];
     const firstObj = stops[0];
     const lastObj = stops[stops.length - 1];
     const firstColor = `rgba(${firstObj.r},${firstObj.g},${firstObj.b},${firstObj.a})`;
@@ -49,15 +55,11 @@ const CircularGauge = ({ value, min, max, type, unit, status }) => {
     );
   };
 
-  const getDotColor = () => getColorFromGradient(value, min, max, gradientStops[type]);
+  const getDotColor = () => getColorFromGradient(validValue, min, max, gradientStops[type] || []);
   const statusClasses = getStatusStyle(status);
 
   return (
     <div className="relative flex flex-col items-center justify-center -mt-4 w-full">
-      {/* RESIZING FIX: 
-         Removed fixed width="220" height="180". 
-         Added viewBox and className to allow scaling within the 3-column grid.
-      */}
       <svg viewBox="0 0 220 180" className="w-full h-auto max-w-[220px] overflow-visible">
         <defs><filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.2"/></filter></defs>
         {type === 'temp' && (<path d={describeArc(center, center, radius, startAngle, endAngle)} fill="none" stroke="#e2e8f0" strokeWidth={stroke} strokeLinecap="round" />)}
@@ -67,8 +69,8 @@ const CircularGauge = ({ value, min, max, type, unit, status }) => {
         <circle cx={indicatorPos.x} cy={indicatorPos.y} r="12" fill={getDotColor()} stroke="white" strokeWidth="3" filter="url(#shadow)" className="transition-all duration-1000 ease-out" />
       </svg>
       <div className="absolute top-[85px] text-center">
-        <div className="text-5xl font-bold text-slate-800 tracking-tight">{Number(value).toFixed(1)}</div>
-        <div className="text-sm font-semibold text-slate-400 mt-1 uppercase">{unit}</div>
+        <div className="text-4xl font-bold text-slate-800 tracking-tight">{validValue.toFixed(2)}</div>
+        <div className="text-sm font-semibold text-slate-400 mt-1">{unit}</div>
         <div className={`text-xs font-bold mt-1 px-2 py-0.5 rounded-full inline-block border ${statusClasses}`}>{status}</div>
       </div>
     </div>

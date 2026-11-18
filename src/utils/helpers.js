@@ -1,19 +1,23 @@
 export const gradientStops = {
+  do: [
+    { p: 0.00, r: 255, g: 255, b: 255, a: 1 }, 
+    { p: 1.00, r: 0, g: 153, b: 255, a: 1 }    
+  ],
   temp: [
     { p: 0.0, r: 12, g: 103, b: 162, a: 1 }, 
     { p: 1.0, r: 238, g: 71, b: 46, a: 1 }
   ],
   ph: [
-    { p: 0.00, r: 176, g: 28, b: 43, a: 1 },  // red
-    { p: 0.10, r: 221, g: 58, b: 51, a: 1 },  // red orange
-    { p: 0.20, r: 224, g: 202, b: 49, a: 1 }, // yellow
-    { p: 0.30, r: 53, g: 132, b: 68, a: 1 },  // green
-    { p: 0.40, r: 31, g: 156, b: 209, a: 1 }, // light blue
-    { p: 0.50, r: 32, g: 142, b: 196, a: 1 }, // blue
-    { p: 0.60, r: 36, g: 31, b: 94, a: 1 },   // indigo
-    { p: 0.80, r: 94, g: 42, b: 136, a: 1 },  // purple
-    { p: 0.90, r: 135, g: 36, b: 132, a: 1 }, // magenta
-    { p: 1.00, r: 135, g: 36, b: 132, a: 1 }  // magenta
+    { p: 0.00, r: 176, g: 28, b: 43, a: 1 },  
+    { p: 0.10, r: 221, g: 58, b: 51, a: 1 },  
+    { p: 0.20, r: 224, g: 202, b: 49, a: 1 }, 
+    { p: 0.30, r: 53, g: 132, b: 68, a: 1 },  
+    { p: 0.40, r: 31, g: 156, b: 209, a: 1 }, 
+    { p: 0.50, r: 32, g: 142, b: 196, a: 1 }, 
+    { p: 0.60, r: 36, g: 31, b: 94, a: 1 },   
+    { p: 0.80, r: 94, g: 42, b: 136, a: 1 },  
+    { p: 0.90, r: 135, g: 36, b: 132, a: 1 }, 
+    { p: 1.00, r: 135, g: 36, b: 132, a: 1 }  
   ],
   turbidity: [
     { p: 0.00, r: 236, g: 231, b: 202, a: 0.15 }, 
@@ -23,6 +27,7 @@ export const gradientStops = {
 };
 
 export const getColorFromGradient = (value, min, max, stops) => {
+  if (!stops || stops.length === 0) return 'rgba(200,200,200,1)';
   const safeValue = Math.min(Math.max(value, min), max);
   const percentage = (safeValue - min) / (max - min);
   for (let i = 0; i < stops.length - 1; i++) {
@@ -40,8 +45,14 @@ export const getColorFromGradient = (value, min, max, stops) => {
   return `rgba(${last.r}, ${last.g}, ${last.b}, ${last.a})`;
 };
 
-// --- THIS FUNCTION WAS MISSING, CAUSING THE CRASH ---
 export const determineStatus = (type, value) => {
+  if (type === 'do') {
+    if (value < 3.0) return 'Critical';
+    if (value < 5.0) return 'Poor';
+    if (value <= 7.0) return 'Fair';
+    if (value <= 10.0) return 'Good';
+    return 'Excellent';
+  }
   if (type === 'temp') {
     if (value < 20) return 'Cold';
     if (value < 25) return 'Cool';
@@ -63,29 +74,23 @@ export const determineStatus = (type, value) => {
   }
   return 'Unknown';
 };
-// ----------------------------------------------------
 
 export const getStatusStyle = (status) => {
   if (!status) return 'bg-slate-100 text-slate-600 border-slate-200';
   const s = status.toLowerCase();
   
-  // Green/Safe
   if (['optimal', 'neutral', 'clear', 'excellent', 'good'].includes(s)) 
     return 'bg-emerald-100 text-emerald-800 border-emerald-200';
   
-  // Blue/Cold
   if (['cold', 'cool'].includes(s))
     return 'bg-blue-100 text-blue-800 border-blue-200';
     
-  // Purple/Alkaline
   if (['alkaline'].includes(s))
     return 'bg-purple-100 text-purple-800 border-purple-200';
 
-  // Yellow/Warning
   if (['warm', 'cloudy', 'moderate', 'fair'].includes(s)) 
     return 'bg-amber-100 text-amber-800 border-amber-200';
 
-  // Red/Critical
   if (['hot', 'acidic', 'turbid', 'critical', 'danger', 'poor'].includes(s)) 
     return 'bg-rose-100 text-rose-800 border-rose-200';
 
@@ -93,44 +98,39 @@ export const getStatusStyle = (status) => {
 };
 
 export const getDescriptiveAnalysis = (type, value) => {
-  // --- TEMPERATURE (ºC) ---
+  if (type === 'do') {
+    if (value < 5.0) return "Hypoxic conditions detected. High risk to aquatic life.";
+    if (value <= 7.0) return "Moderate oxygen levels. Stressful for sensitive species.";
+    return "Adequate dissolved oxygen for aquatic life.";
+  }
   if (type === 'temp') {
     if (value < 20) return "Chemical reaction rates are slowed.";
     if (value > 30) return "Oxygen solubility is reduced.";
     return "Thermal conditions are stable.";
   }
-
-  // --- pH LEVEL ---
   if (type === 'ph') {
     if (value < 6.5) return "Potential for corrosion or contaminant solubility.";
     if (value > 8.5) return "Risk of scaling or mineral deposits.";
     return "Chemical balance is stable.";
   }
-
-  // --- TURBIDITY (NTU) ---
   if (type === 'turbidity') {
     if (value > 25) return "Significant suspended solids detected.";
     if (value > 10) return "Water appears slightly cloudy.";
     return "Low particulate matter detected.";
   }
-
   return "Analyzing data...";
 };
 
-export const calculateWQI = (temp, ph, turbidity) => {
-  // Example Weighted Factor Calculation (Simplified for this project)
-  // Standard weights: pH (0.22), Turbidity (0.15), Temp (0.10)
-  
-  // 1. Calculate Sub-Indices (q-values)
-  // pH optimal is ~7.0
+export const calculateWQI = (temp, ph, turbidity, doVal = 8) => {
   const qPh = 100 - (Math.abs(ph - 7.0) * 20); 
-  // Turbidity optimal is 0-5 NTU
   const qTurb = Math.max(0, 100 - (turbidity * 2));
-  // Temp optimal varies, but let's assume 25°C baseline
   const qTemp = 100 - (Math.abs(temp - 25.0) * 3);
+  
+  // Dissolved Oxygen: Optimal is > 7mg/L
+  const qDo = doVal >= 7.0 ? 100 : Math.max(0, (doVal / 7.0) * 100);
 
-  // 2. Weighted Average
-  const wqi = (qPh * 0.4) + (qTurb * 0.4) + (qTemp * 0.2);
+  // Adjusted Weights: DO (0.3), pH (0.3), Turbidity (0.2), Temp (0.2)
+  const wqi = (qDo * 0.3) + (qPh * 0.3) + (qTurb * 0.2) + (qTemp * 0.2);
   
   return Math.min(100, Math.max(0, Math.round(wqi)));
 };

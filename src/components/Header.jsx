@@ -41,7 +41,7 @@ const Header = ({
 
         {/* TITLE & DESCRIPTION */}
         <div>
-           <h1 className="font-extrabold text-slate-900 tracking-tight uppercase text-2xl leading-none">
+           <h1 className="font-bold text-slate-900 tracking-tight text-2xl leading-none">
              {headerConfig.title}
            </h1>
            <p className="text-slate-500 text-xs mt-1 font-medium">
